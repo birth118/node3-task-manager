@@ -1,11 +1,8 @@
 const express = require('express')
-const router = new express.Router()
+const router = new express.Router() // You can add middleware and HTTP method routes (such as get, put, post, and so on) to router just like an application.
 
 const User = require('../models/user')
-
-router.get('/test', (req,res)=>{
-    res.send('from /test router')
-})
+const auth = require('../middleware/auth')
 
 // app.post('/users', (req, res)=>{        // Create a user
 //     const user = new User(req.body)
@@ -21,12 +18,45 @@ router.post('/users', async (req, res)=>{        // Create a user. Same as above
     const user = new User(req.body)
     try{
          await user.save()
-         res.status(201).send(user)
+         token = await user.generateAuthToken()
+         res.status(201).send({user, token})            // auth token goes to browser client
     }catch(err){
          res.status(400).send(err)     // 400: Bad request such as validation error
     }
 })
 
+router.post('/users/login',async (req,res)=>{          // find credential by email and passwd
+    try{
+        const user = await User.findByCredentials(req.body.email, req.body.password)
+        const token = await user.generateAuthToken()    //as a uer instance method
+        res.send({user, token})
+    }catch(e){
+        res.status(400).send()  // 400: Bad request
+    }
+})
+
+
+router.post('/users/logout',auth, async (req,res)=>{        // Logout the user from single login
+    try{
+           req.user.tokens = req.user.tokens.filter((item)=> item.token !== req.token) 
+           await req.user.save()
+           res.send()
+    }catch(e){
+           res.status(500).send(e)                       // 500 Internal Server Error
+    }
+
+})
+
+router.post('/users/logoutAll', auth, async (req, res)=>{                         // Logout the user from all login (pc, mobile, ...)
+    try{
+        req.user.tokens = []
+        await req.user.save()
+        res.send()
+
+    }catch(e){
+         res.status(500).send(e)                       // 500 Internal Server Error  
+    }
+})
 
 // app.get('/users', (req, res)=>{         // Retrieve all users
 //     User.find({}).then((users)=>{
@@ -36,15 +66,23 @@ router.post('/users', async (req, res)=>{        // Create a user. Same as above
 //     })
 // })
 
+// No loger needed
+// router.get('/users', auth, async (req, res)=>{         // Retrieve all users. Same as above, but with async/awai
+//     try{                                               // midddle auth.next() runs, then async (req, res)=>{..} runs
+//         const users = await User.find({})
+//         res.status(200).send(users)
+//     }catch(e){
+//         res.status(500).send()
+//     }    
+// })
 
-router.get('/users', async (req, res)=>{         // Retrieve all users. Same as above, but with async/awai
-    try{
-        const users = await User.find({})
-        res.status(200).send(users)
-    }catch(e){
-        res.status(500).send()
-    }    
+router.get('/users/me', auth, async (req, res)=>{        //  router.METHOD(path, [callback, ...] callback)
+                                                         // Retrieve my profile by sending my auth token from browser client.
+                                                         // auth: middleware callback function. midddle auth.next() runs, then async (req, res)=>{..} runs
+                                                         // async (req,res=>{..} :  router handler. this runs after auth functiin
+        res.status(200).send(req.user)          
 })
+
 
 
 // app.get('/users/:id', (req, res)=>{     // Retrieve a user
@@ -92,10 +130,17 @@ router.patch('/user/:id', async (req,res)=>{                   // Update a user 
     }
 
     try{
-        const user = await User.findByIdAndUpdate(req.params.id,req.body, {new: true, runValidators: true})
+        //const user = await User.findByIdAndUpdate(req.params.id,req.body, {new: true, runValidators: true})
+
+        const user = await User.findByIdAndUpdate(req.params.id)
         if(!user){
             return res.status(404).send()   // Not found
         }
+        
+        updates.forEach((update)=>{
+             user[update] = req.body[update]     // Wow!. user['name'] will return value of 'name' property in user object
+        })
+        await user.save()       
         res.send(user)          // OK
     }catch(e){
         res.status(400).send(e)    // Validation failed such as validation error

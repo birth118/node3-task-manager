@@ -85,10 +85,15 @@ router.patch('/tasks/:id', async (req, res)=>{              // Update a task by 
     }
     
     try{
-        const task = await Task.findByIdAndUpdate(req.params.id, req.body, {new: true, runValidators: true})
+        //const task = await Task.findByIdAndUpdate(req.params.id, req.body, {new: true, runValidators: true})
+
+        const task = await Task.findByIdAndUpdate(req.params.id)
+
         if(!task){
             return res.status(404).send()         //404 Not Found
         }
+        updates.forEach((update)=>task[update] = req.body[update])
+        await task.save()
         res.send(task)                            // OK
     }catch(e){
         return res.status(400).send()             // 400 Bad Request such as invalid update data
