@@ -2,7 +2,7 @@ const express = require('express')
 const router = new express.Router()
 
 const Task = require('../models/task')
-
+const auth = require('../middleware/auth')
 
 // app.post('/tasks' ,(req,res)=>{             // Creat a task
 //     const task = new Task(req.body)
@@ -14,8 +14,11 @@ const Task = require('../models/task')
 
 // })
 
-router.post('/tasks' , async (req,res)=>{          // Creat a task. Same as above but using async/await 
-    const task = new Task(req.body)
+router.post('/tasks', auth, async (req,res)=>{          // Creat a task. Same as above but using async/await 
+    const task = new Task({
+        ...req.body, 
+        owner: req.user._id
+    })
     try{
         await task.save()
         res.status(201).send(task)
@@ -36,11 +39,40 @@ router.post('/tasks' , async (req,res)=>{          // Creat a task. Same as abov
 //     })
 // })
 
-
-router.get('/tasks', async (req, res)=>{             // Retrieve all tasks. Same as above but using async/await
+//GET /tasks
+//GET /tasks?completed=true
+//GET /tasks?completed=non_true (false)
+//GET /tasks?limit=10&skip=10    --> For pagination
+//GET /tasks?sortBy=createdAt:desc
+router.get('/tasks', auth, async (req, res)=>{             // Retrieve all tasks. Same as above but using async/await
 
     try{
-        const tasks = await Task.find({})
+        // const tasks = await Task.find({owner:req.user._id})
+        const match = {}
+        const sort ={}
+
+        if(req.query.completed){
+            match.completed = req.query.completed === 'true'
+        }
+
+        if(req.query.sortBy){
+            const parts = req.query.sortBy.split(':')
+            sort[parts[0]] = parts[1] === 'desc'?-1:1
+            console.log(sort)
+        }
+
+        await req.user.populate({
+            path: 'tasks',              // 'path' property is treated a column named 'tasks' ref to Task model
+            match: match,               // 'match' property is treated as condition 
+            options: {                  //  'options' property mongoose built-in options   
+                limit: parseInt(req.query.limit),
+                skip: parseInt(req.query.skip),
+                sort:sort             
+            }
+        }).execPopulate()
+
+        const tasks = req.user.tasks
+
         if(tasks.length<1   ){
                 return res.status(404).send()    // 404 Not Found
         }
@@ -62,11 +94,14 @@ router.get('/tasks', async (req, res)=>{             // Retrieve all tasks. Same
 //     })
 // })
 
-router.get('/tasks/:id', async (req, res)=>{           // Retrieve a task. Same as above but using asyn/await
+router.get('/tasks/:id', auth, async (req, res)=>{           // Retrieve a task. Same as above but using asyn/await
     const _id = req.params.id
+ //   console.log(req.user)
 
     try{
-        const task = await Task.findById(_id)
+         //const task = await Task.findById(_id)      
+        const task = await Task.findOne({_id, owner:req.user._id})   //To use findOne() by task._id and task.owner
+
         if(!task){
             return res.status(404).send()
         }
@@ -76,7 +111,7 @@ router.get('/tasks/:id', async (req, res)=>{           // Retrieve a task. Same 
     }
 })
 
-router.patch('/tasks/:id', async (req, res)=>{              // Update a task by ID
+router.patch('/tasks/:id', auth, async (req, res)=>{              // Update a task by ID
     const allowed = ['description', 'completed']
     const updates = Object.keys(req.body)
     const isValid = updates.every((update)=>allowed.includes(update))
@@ -87,7 +122,7 @@ router.patch('/tasks/:id', async (req, res)=>{              // Update a task by 
     try{
         //const task = await Task.findByIdAndUpdate(req.params.id, req.body, {new: true, runValidators: true})
 
-        const task = await Task.findByIdAndUpdate(req.params.id)
+        const task = await Task.findOne({_id: req.params.id, owner:req.user._id })
 
         if(!task){
             return res.status(404).send()         //404 Not Found
@@ -100,9 +135,10 @@ router.patch('/tasks/:id', async (req, res)=>{              // Update a task by 
     }
 })         
 
-router.delete('/tasks/:id', async (req, res)=>{          // Delete a task
+router.delete('/tasks/:id', auth, async (req, res)=>{          // Delete a task
     try{
-        const task = await Task.findByIdAndDelete(req.params.id)
+        // const task = await Task.findByIdAndDelete(req.params.id)
+        const task = await Task.findOneAndDelete({_id:req.params.id, owner: req.user._id })
         if(!task){
             return res.status(404).send()       //404 Not Found
         }

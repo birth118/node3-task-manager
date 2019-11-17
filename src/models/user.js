@@ -2,6 +2,7 @@ const validator = require('validator')
 const mongoose = require('mongoose')
 const bcrypt = require('bcryptjs')
 const jwt = require('jsonwebtoken')
+const Task = require('./task')
 
 
 // DDL - user collection
@@ -51,7 +52,20 @@ const userSchema = new mongoose.Schema({
             type: String,
             required: true
         }
-    }]
+    }],
+    avatar: {
+        type: Buffer                // For binary image
+    }
+},{
+    timestamps: true
+}
+)
+
+// virtual relationship user <---> tasks as 'Parent'
+userSchema.virtual('tasks', {
+    ref: 'Task',
+    localField: '_id',
+    foreignField: 'owner'  
 })
 
 // Instances of Models are documents. Documents have many of their own built-in instance methods.
@@ -65,6 +79,32 @@ userSchema.methods.generateAuthToken  = async function(){
     return token
 
 }
+
+// To re-crate a uer profile to be shared to client browser
+// userSchema.methods.getPublicProfile = function(){
+//     const user = this
+//     const userObject = user.toObject()
+
+//     delete userObject.password   // The JavaScript delete operator removes a property from an object;
+//     delete userObject.tokens
+
+//     return userObject
+// }
+
+//If an object being stringified (ex, via http ) has a property named toJSON whose value is 
+//a function, then the toJSON() method customizes JSON stringification behavior:
+//This will be applied to all 'user' instance going to client browser by being stingified
+//This function will be used by JSON stringification behavior being controlled by Express
+userSchema.methods.toJSON = function(){
+    const user = this
+    const userObject = user.toObject()
+
+    delete userObject.password   // The JavaScript delete operator removes a property from an object;
+    delete userObject.tokens
+
+    return userObject
+} 
+
  
 // To add static functions to your model
 userSchema.statics.findByCredentials  = async (email,passwd) =>{
@@ -83,15 +123,29 @@ userSchema.statics.findByCredentials  = async (email,passwd) =>{
 }
 
 
-// Middleware - pre/post of mongoDB 'model.save()' action
-userSchema.pre('save', async function(next) {        // arrow function won't working here!
+// Middleware - pre/post of mongoDB 'model.save()' action - akind tigger before saving
+userSchema.pre('save', async function(next) {        // arrow function won't working here! because using 'this' 
     const user = this
 
-    if(user.isModified('password')){
+    if(user.isModified('password')){            // isModified() mongoose function
         user.password = await bcrypt.hash(user.password, 8)
     }
     next()                                             // What is this for?
 })
+
+// Middleware: To delete all tasks of the user when the user is deleted
+userSchema.pre('remove', async function(next){
+    const user = this
+
+    try{
+        await Task.deleteMany({owner: user._id})
+    }catch(e){
+        throw new Error('deleteMany by user failed')
+    }
+
+    next()
+})
+
 
 const User = mongoose.model('User', userSchema);
 
