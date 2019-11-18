@@ -4,7 +4,6 @@ const bcrypt = require('bcryptjs')
 const jwt = require('jsonwebtoken')
 const Task = require('./task')
 
-
 // DDL - user collection
 // Collection: User, mongoose, then, will pluralise to 'users' 
 
@@ -72,7 +71,7 @@ userSchema.virtual('tasks', {
 // For a specific user instance
 userSchema.methods.generateAuthToken  = async function(){
     const user = this
-    const token = jwt.sign({_id: user._id.toString()}, 'secret')
+    const token = jwt.sign({_id: user._id.toString()}, process.env.JWT_SECRET)
     user.tokens = user.tokens.concat({token})
     await user.save()
 
@@ -101,6 +100,7 @@ userSchema.methods.toJSON = function(){
 
     delete userObject.password   // The JavaScript delete operator removes a property from an object;
     delete userObject.tokens
+    delete userObject.avatar
 
     return userObject
 } 

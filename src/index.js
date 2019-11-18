@@ -5,30 +5,7 @@ const userRouter = require('./routers/user')    // Refer user router
 const taskRouter = require('./routers/task')
 
 const app = express()
-const port = process.env.PORT || 3000
-
-const multer = require('multer')
-const upload = multer({
-    dest: 'images',
-    limits: {
-        fileSize: 1000000,
-    },
-    fileFilter(req, file, cb) {         // To define a callback function abot type of file to handle
-        // if(!file.originalname.endsWith('.pdf')){
-        if(!file.originalname.match(/\.(doc|docx)$/)){       // regex        
-            return cb(new Error('File must be a Word doc'))
-        }
-        cb(undefined, true)
-
-        // cb(new Error('File must be a PDF')) // Error
-        // cb(undefined, true)                 // Success
-        // cb(undefined, false)                // Not accept - silently
-
-    }
-})
-app.post('/upload', upload.single('upload'), (req,res)=>{   //'upload' will be used as a key in http body request
-    res.send()
-})
+const port = process.env.PORT
 
 app.use(express.json())     // http body data will be treated as JSON format
 app.use(userRouter)         // Here to activate the user router 
@@ -53,10 +30,10 @@ const myFunction = async () => {
 // myFunction()
 
 // >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-const pet ={
-    name: 'Hal',
-    age: 6
-}
+// const pet ={
+//     name: 'Hal',
+//     age: 6
+// }
 
 //If an object being stringified (ex, via http ) has a property named toJSON whose value is 
 //a function, then the toJSON() method customizes JSON stringification behavior:

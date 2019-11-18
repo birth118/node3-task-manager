@@ -1,5 +1,6 @@
 const jwt = require('jsonwebtoken')
 const User = require('../models/user')
+ 
 
 // middleware callback function auth()
 const auth = async function(req, res, next){        // to check if user is authenticated
@@ -7,7 +8,7 @@ const auth = async function(req, res, next){        // to check if user is authe
     try{
         const token = req.header('Authorization').replace('Bearer ','')   //auth token comes from browser client
                                                                           // to remove 'Bearer '
-        const decodedPayload  = jwt.verify(token, 'secret')  
+        const decodedPayload  = jwt.verify(token, process.env.JWT_SECRET)  
      //   console.log(decodedPayload)
         const user = await User.findOne({_id: decodedPayload._id, 'tokens.token':token})
 

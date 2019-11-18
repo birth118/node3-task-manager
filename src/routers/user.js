@@ -3,8 +3,11 @@ const router = new express.Router() // You can add middleware and HTTP method ro
 
 const User = require('../models/user')
 const auth = require('../middleware/auth')
+const {sendWelcomeEmail, sendByeEmail} = require('../emails/account')
 
 const multer = require('multer')
+const sharp = require('sharp')
+
 
 // app.post('/users', (req, res)=>{        // Create a user
 //     const user = new User(req.body)
@@ -20,6 +23,7 @@ router.post('/users', async (req, res)=>{        // Create a user. Same as above
     const user = new User(req.body)
     try{
          await user.save()
+         sendWelcomeEmail(user.email, user.name)
          token = await user.generateAuthToken()
          res.status(201).send({user, token})            // auth token goes to browser client
     }catch(err){
@@ -194,6 +198,7 @@ router.delete('/users/me',auth, async (req, res)=>{       // Delete a user: me
     try{
         await req.user.remove()
         res.send(req.user)
+        sendByeEmail(req.user.email, req.user.name)
     }catch(e){
         res.status(500).send(e)    // 500 Internal Server Error
     }
@@ -213,7 +218,10 @@ const upload = multer({
 })
 
 router.post('/users/me/avatar', auth, upload.single('avatar'), async (req, res)=>{           // To upload my avatar
-    req.user.avatar = req.file.buffer           // multer retrives the binary buffer data over http form-data body
+//    req.user.avatar = req.file.buffer           // multer retrives the binary buffer data over http form-data body
+    const buffer  = await sharp(req.file.buffer).resize({width:250, height:250}).png().toBuffer()   // To resize  and reformat to png
+    req.user.avatar = buffer 
+
     await req.user.save()
     res.send()
 },(error,req, res, next)=>{                                             // ** To handle the uncaught Error in Express
@@ -234,7 +242,7 @@ router.get('/users/:id/avatar', async (req, res)=>{
             if(!user || !user.avatar){
                 throw new Error()
             }
-            res.set('Content-Type','image/jpg')                  // To set REPSONSE header
+            res.set('Content-Type','image/png')             // To set REPSONSE header
             res.send(user.avatar)
     }catch(e){
         res.status(404).send(e)              // 404 Not Found
